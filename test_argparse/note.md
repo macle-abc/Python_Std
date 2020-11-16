@@ -301,7 +301,7 @@ ArgumentParser.add_argument(name or flags...\[, action\]]\[, nargs\]\[, const\]\
            ...: parser.add_argument('--foo', nargs=2)
            ...: parser.add_argument('bar') #, nargs=1)
            ...: parser.parse_args('c --foo a b'.split())
-           ...: #Namespace(bar=['c'], foo=['a', 'b'])
+           ...: #Namespace(bar='c', foo=['a', 'b'])
         Out[7]: Namespace(bar='c', foo=['a', 'b'])
         ```
     2. '?'，类似正则表达式的?表示可有可无，当没有该参数时将采纳default的值，但是如果该参数是一个选项的话而且没有指定后面的参数(eg:-foo \[FOO\]没有传入)，那么将会采纳const的值而非default的值 
