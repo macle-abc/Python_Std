@@ -78,8 +78,9 @@
     Out[67]: [1, 2, [3]]
     ```
 
-7. 函数的参数列表的/的含义
+7. 函数的参数列表的/和\*的含义
     表明在/之前的形参都必须是位置参数
+    表明在\*之后的形参都必须是关键字参数
     ```python
     In [83]: divmod?
     Signature: divmod(x, y, /)
@@ -96,6 +97,23 @@
     ----> 1 divmod(x=2, y=3)
 
     TypeError: divmod() takes no keyword arguments
+    ```
+    ---
+    ```python
+    In [88]: def func(*, a, b):
+        ...:     return a + b
+        ...:
+
+    In [89]: func(2, 3)
+    ---------------------------------------------------------------------------
+    TypeError                                 Traceback (most recent call last)
+    <ipython-input-89-2b92b04f16f8> in <module>
+    ----> 1 func(2, 3)
+
+    TypeError: func() takes 0 positional arguments but 2 were given
+
+    In [90]: func(b=2, a=3)
+    Out[90]: 5
     ```
    
 8. 将多个字符串连接在一起的最有效的方法是?
