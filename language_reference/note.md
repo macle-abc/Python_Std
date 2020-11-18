@@ -507,3 +507,62 @@ Out[117]: 3
     Out[18]: 3
     ```
 
+### 对于\_\_slots\_\_的说明
+\_\_slots\_\_允许显式声明数据成员，并且禁止创建\_\_dict\_\_和\_\_weakref\_\_
+**除非\_\_slots\_\_中显示声明\_\_dict\_\_等或者在父类中没有进行限制**
+```python
+In [1]: class A:
+   ...:     def __init__(self, a, b):
+   ...:         print(self, a, b)
+   ...:         self.a = a
+   ...:         self.b = b
+   ...:
+
+# 当继承自一个未定义 __slots__ 的类时，实例的 __dict__ 和 __weakref__ 属性将总是可访问。
+In [2]: class B(A):
+   ...:     __slots__ = ('c', 'd')
+   ...:     def __init__(self, a, b, c, d):
+   ...:         super().__init__(a, b)
+   ...:         self.c = c
+   ...:         self.d = d
+   ...:
+
+In [3]: b = B(1, 2, 3, 4)
+<__main__.B object at 0x0000020140CA6CC0> 1 2
+
+In [4]: b.f = 5
+```
+
+**注意事项**
+1. 如果未给每个实例设置 \_\_weakref\_\_ 变量，定义了 \_\_slots\_\_ 的类就不支持对其实际的弱引用。如果需要弱引用支持，就要将 '\_\_weakref\_\_' 加入到 \_\_slots\_\_ 声明的字符串序列中。dict同理
+2. 在父类中声明的 \_\_slots\_\_ 在其子类中同样可用。不过，子类将会获得 \_\_dict\_\_ 和 \_\_weakref\_\_ 除非它们也定义了 \_\_slots\_\_
+### \_\_init\_subclass\_\_(cls)
+\_\_init_subclass\_\_() 是钩子函数，它解决了如何让父类知道被继承的问题。钩子中能改变类的行为，而不必求助与元类或类装饰器。
+传入一个新类的关键字参数会被传给父类的\_\_init\_subclass\_\_。应当根据需要去掉部分关键字参数再将其余的传给基类
+```python
+In [63]: class Philosopher:
+    ...:     # 默认会被修改为classmethod修饰的方法
+    ...:     def __init_subclass__(cls, /, default_name, **kwargs):
+    ...:         print(cls, default_name, kwargs)
+    ...:         #super().__init_subclass__(**kwargs) 
+    ...:         print(super())
+    ...:         cls.default_name = default_name
+    ...:
+    ...: class AustralianPhilosopher(Philosopher, default_name="Bruce"):
+    ...:     pass
+    ...:
+<class '__main__.AustralianPhilosopher'> Bruce {}
+<super: <class 'Philosopher'>, <AustralianPhilosopher object>>
+
+In [64]: Philosopher.__mro__
+# 由于Philosopher的继承关系链的下一位是object因此，547行将会使用object.__init_subclass__(cls) # 但是这个方法，默认什么都不做，并且不接受关键字参数，因此如果没有注释A类创建的时候将会抛出异常
+# 关于super的理解
+# super() 等价于super(__class__, obj) 会根据obj的mro查找__class__的下一位作为super()的返回值
+Out[64]: (__main__.Philosopher, object)
+
+In [65]: class A(Philosopher, k=2, default_name=3):
+    ...:     pass
+    ...:
+<class '__main__.A'> 3 {'k': 2}
+<super: <class 'Philosopher'>, <A object>>
+```
