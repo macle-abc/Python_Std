@@ -250,30 +250,215 @@ print(foo.__kwdefaults__)
 
 1.\_\_getattribute\_\_(self, name)
     此方法会无条件地被调用以实现对类实例属性的访问。如果类还定义了`__getattr__()`则后者不会被调用，除非`__getattribute__()`显式地调用它或是引发了`AttributeError`
-    **尤其注意为了避免递归**
+    **尤其注意为了避免递归，应该调用基类方法去访问**
 
-    ```python
-    In [43]: class B(A):
-        ...:     b = 3
-        ...:     def __getattribute__(self, name):
-        ...:         print("log name")
-        ...:         try:
-        ...:             return object.__getattribute__(self, name)
-        ...:         except AttributeError:
-        ...:             return "other attribute"
-        ...:
-    In [44]: B().a
-    log name
-    Out[44]: 2
+~~~python
+```python
+In [11]: class A:
+...:     a = 1
+...:
 
-    In [45]: B().b
-    log name
-    Out[45]: 3
+In [12]: class B(A):
+    ...:     b = 2
+    ...:     def __getattribute__(self, name):
+    ...:         return super().__getattribute__(name)
+    ...:
 
-    In [46]: B().c
-    log name
-    Out[46]: 'other attribute'
-        ```
+In [13]: b = B()
+
+In [14]: b.a
+Out[14]: 1
+
+In [15]: b.b
+Out[15]: 2
+
+In [16]: b.c
+---------------------------------------------------------------------------
+AttributeError                            Traceback (most recent call last)
+<ipython-input-16-4592cda7d891> in <module>
+----> 1 b.c
+
+<ipython-input-12-c64feac76a00> in __getattribute__(self, name)
+      2     b = 2
+      3     def __getattribute__(self, name):
+----> 4         return super().__getattribute__(name)
+      5
+
+AttributeError: 'B' object has no attribute 'c'
+```
+~~~
 
 2. \_\_getattr\_\_(self, name)
+    当因引发AttributeError时被调用，应返回找到的值或者引发AttributeError(不会引发递归)
     pass
+
+3. \_\_setattr\_\_(self, name, value)
+    被赋值时调用会取代默认行为**将name:value保存到实例字典里面**
+    应该调用基类的方法
+    
+4. \_\_delattr\_\_(self, name)
+    用途**仅在del obj.name对于该对象有意义的时候才会被实现** 
+5. \_\_dir\_\_(self)
+    此方法会在对相应对象调用 dir() 时被调用。返回值必须为一个序列(可迭代对象), dir会把这个转化为list再排序
+
+
+### 属性描述符
+当一个类的属性为一个类(定义了以下方法)的实例时才会起作用
+1. \_\_get\_\_(self, instance, owner=None)
+    此方法应当返回计算得到的属性值或是引发 AttributeError 异常。
+    ```python
+    In [9]: class ADescriptor:
+    ...:     def __get__(self, instance, owner=None):
+    ...:         '''
+    ...:         @params self:为ADescriptor的实例
+    ...:         @params instance:为属性描述符的拥有者的实例
+    ...:         @params owner:为拥有者这个类
+    ...:         return: 属性
+    ...:         raise: AttributeError
+    ...:         '''
+    ...:         print(f"self:{self}, instance:{instance}, owner:{owner}")
+    ...:         return "descriptor"
+    ...:
+
+    In [10]: class A:
+        ...:     a = ADescriptor()
+        ...:     def __init__(self, v):
+        ...:         self.v = v
+        ...: 
+    In [12]: a = A(2)
+
+    In [13]: a.a
+    self:<__main__.ADescriptor object at 0x000002C7391080D0>, instance:<__main__.A object at 0x000002C739108220>, owner:<class '__main__.A'>
+    Out[13]: 'descriptor'
+
+    In [14]: a.v
+    Out[14]: 2
+   ```
+   
+2. \_\_set\_\_(self, instance, value)
+    **设置\_\_set\_\_或者\_\_delete\_\_会将描述符变成数据描述符**
+
+3. \_\_delete\_\_(self, instance)
+   
+4. \_\_set\_name\_\_(self, owner, name)
+    在所有者类owner创建时被调用(owner被type创建时，隐式调用)。描述器会被赋值为name。
+    ```python
+    In [41]: class ADescriptor:
+        ...:      def __set_name__(self, owner, name):
+        ...:          print(self, owner, name)
+
+    In [42]: class A:
+        ...:     a = ADescriptor()
+        ...:
+    <__main__.ADescriptor object at 0x000002C7393A9130> <class '__main__.A'> a
+    ```
+    
+### 理解描述符
+其属性访问已被描述器协议中的方法所重载，包括\_\_get\_\_(), \_\_set\_\_() 和 \_\_delete\_\_()。如果一个对象定义了以上方法中的任意一个，它就被称为描述器。
+默认的属性查找:
+```
+a.x == a.__dict__['x'] -> type(a).__dict__['x'] 一直到基类(**不包括元类**)
+```
+---
+描述器发起调用的开始点是a.x。参数的组合方式依a而定:
+- 直接调用
+最简单但最不常见的调用方式是用户代码直接发起调用一个描述器方法: x.\_\_get\_\_(a)。
+
+- 实例绑定
+    如果x绑定到一个对象实例，a.x 会被转换为调用: type(a).\_\_dict__\['x'\].\_\_get\_\_(a, type(a))。
+
+- 类绑定
+    如果x绑定到一个类，A.x 会被转换为调用: A.\_\_dict_\_\['x'\].\_\_get\_\_(None, A)。
+
+- 超绑定
+    如果a是super的一个实例，则super(B, obj).m()**(即a = super(B, obj)即a是B的父类)**
+    ```
+    会在 obj.__class__.__mro__ 中搜索 B 的直接上级基类 A 然后通过以下调用发起调用描述器: A.__dict__['m'].__get__(obj, obj.__class__)。  
+    ```
+---
+如果一个描述符没有定义\_\_get\_\_()，则访问属性会返回描述器对象自身，除非对象的实例字典中有相应属性值。
+```python
+In [85]: class D:
+    ...:     def __get__(self, instance, owner=None): # 若没定义该方法
+    ...:         print("get", self, instance, owner)
+    ...:
+In [86]: class A:
+    ...:     d = D()
+    ...:
+
+In [87]: A.d
+get <__main__.D object at 0x000001F2B1378700> None <class '__main__.A'>
+
+In [88]: A().d
+get <__main__.D object at 0x000001F2B1378700> <__main__.A object at 0x000001F2B25E5370> <class '__main__.A'>
+In [95]: class D:
+    ...:     def __set_name__(self, instance, name):
+    ...:         print(self, instance, name)
+    ...:
+
+In [96]: class A:
+    ...:     d = D()
+    ...:
+<__main__.D object at 0x000001F2B26F5490> <class '__main__.A'> d
+
+In [97]: A.d
+Out[97]: <__main__.D at 0x1f2b26f5490>
+
+In [98]: A().d
+Out[98]: <__main__.D at 0x1f2b26f5490>
+```
+---
+
+如果描述器定义了\_\_set\_\_() 和/或 \_\_delete\_\_()，则它是一个数据描述器；
+如果以上两个都未定义，则它是一个非数据描述器。
+
+---
+
+通常，数据描述器会同时定义\_\_get\_\_() 和 \_\_set\_\_()
+而非数据描述器只有\_\_get\_\_() 方法
+其中a为A的实例
+定义了\_\_set\_\_() 和 \_\_get\_\_() 的数据描述器总是会[^重载],实例字典中的定义(即a.x = 2的时候会调用\_\_set\_\_)。
+
+[^重载]:之所以叫重载,因为访问其他非描述符的属性时是按照正常模式去访问的
+
+```python
+In [101]: class D:
+     ...:     def __set__(self, instance, value):
+     ...:         print(self, instance, value)
+     ...:
+
+In [102]: class A:
+     ...:     d = D()
+     ...:
+
+In [103]: a = A()
+In [106]: a.d = 2
+<__main__.D object at 0x000001F2B13174F0> <__main__.A object at 0x000001F2B2E9F9A0> 2
+
+In [107]: a.d = 3
+<__main__.D object at 0x000001F2B13174F0> <__main__.A object at 0x000001F2B2E9F9A0> 3
+```
+
+与之相对的，非数据描述器可被实例所重载(即a.x = 2的时候会真的修改x的类型为int)
+
+```python 
+In [112]: class D:
+     ...:     def __get__(self, instance, owner):
+     ...:         print(self, instance, owner)
+     ...:
+
+In [113]: class A:
+     ...:     d = D()
+     ...:
+
+In [114]: a = A()
+
+In [115]: a.d
+<__main__.D object at 0x000001F2B133C4F0> <__main__.A object at 0x000001F2B1437280> <class '__main__.A'>
+
+In [116]: a.d = 3
+
+In [117]: a.d
+Out[117]: 3
+```
+
