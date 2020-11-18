@@ -462,3 +462,48 @@ In [117]: a.d
 Out[117]: 3
 ```
 
+### 对于数据描述符和非数据描述符的两个例子
+1. 数据描述符property
+    ```python
+    In [7]: class Test:
+       ...:     @property
+       ...:     def x(self):
+       ...:         print("get x")
+       ...:         return self._x
+       ...:     @x.setter
+       ...:     def x(self, value):
+       ...:         print("set x")
+       ...:         self._x = value
+       ...:     @x.deleter
+       ...:     def x(self):
+       ...:         del self._x
+       ...:
+
+    In [8]: t = Test()
+    In [10]: t.x = 3
+    set x
+
+    In [11]: t.x
+    get x
+    Out[11]: 3
+    ```
+   
+2. 非数据描述符staticmethod / classmethod
+    ```python
+    In [14]: class T:
+        ...:     @staticmethod
+        ...:     def func(args):
+        ...:         print(args)
+        ...:
+
+    In [15]: t = T()
+
+    In [16]: t.func(2)
+    2
+
+    In [17]: t.func = 3
+
+    In [18]: t.func
+    Out[18]: 3
+    ```
+
