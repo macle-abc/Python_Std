@@ -566,3 +566,38 @@ In [65]: class A(Philosopher, k=2, default_name=3):
 <class '__main__.A'> 3 {'k': 2}
 <super: <class 'Philosopher'>, <A object>>
 ```
+
+## 元类
+类是类的类。类定义类的实例（即对象）的行为，而元类定义类的行为。类是元类的实例。
+默认情况下，类是通过type()来构建的
+```python
+In [8]: type?
+Init signature: type(self, /, *args, **kwargs)
+Docstring:
+type(object_or_name, bases, dict)
+type(object) -> the object's type
+type(name, bases, dict) -> a new type
+```
+
+在类定义内指定的任何其他关键字参数都会在下面所描述的所有元类操作中进行传递。
+
+当一个类定义被执行时，将发生以下步骤:
+
+- 解析 MRO 条目；
+- 确定适当的元类；
+    - 没有基类且没有显示指定元类，则使用type()(一般行为)
+    - 给出一个显示元类，但是不是type()的实例(即metaclass不是一个class),则其会被作为元类
+        ```python
+        In [95]: def func(*args, **kwargs):
+            ...:     print(args, kwargs)
+            ...:
+
+        In [96]: class T(metaclass=func):
+            ...:     pass
+            ...:
+        ('T', (), {'__module__': '__main__', '__qualname__': 'T'}) {}
+        ```
+- 准备类命名空间；
+- 执行类主体；
+- 创建类对象。
+
