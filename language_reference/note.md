@@ -568,7 +568,7 @@ In [65]: class A(Philosopher, k=2, default_name=3):
 ```
 
 ## 元类
-类是类的类。类定义类的实例（即对象）的行为，而元类定义类的行为。类是元类的实例。
+元类是类的类。类定义类的实例（即对象）的行为，而元类定义类的行为。类是元类的实例。
 默认情况下，类是通过type()来构建的
 ```python
 In [8]: type?
@@ -584,6 +584,7 @@ type(name, bases, dict) -> a new type
 当一个类定义被执行时，将发生以下步骤:
 
 - 解析 MRO 条目；
+     确定bases的元组
 - 确定适当的元类；
     - 没有基类且没有显示指定元类，则使用type()(一般行为)
     - 给出一个显示元类，但是不是type()的实例(即metaclass不是一个class),则其会被作为元类
@@ -597,7 +598,83 @@ type(name, bases, dict) -> a new type
             ...:
         ('T', (), {'__module__': '__main__', '__qualname__': 'T'}) {}
         ```
-- 准备类命名空间；
-- 执行类主体；
-- 创建类对象。
+    - 给出type()的实例作为元类，或者是定义了积基类，那么会使用最近派生的元类
+        **需要注意的是，一个类的元类只能是一个，不能有多个元类，除非这些元类直接存在派生关系**
+        ```python 
+            class A(type):
+                @classmethod
+                def __prepare__(metacls, name, bases, **kwargs):
+                    print("A", metacls, name, bases, kwargs)
+                    from collections import OrderedDict
+                    return OrderedDict(a=2, b=3)
 
+                def __new__(cls, name, bases, namespace, **kwargs):
+                    print("A", cls, name, bases, namespace, kwargs)
+                    pass
+                    print("----")
+                    return super().__new__(cls, name, bases, namespace)
+
+            class B(type):
+                @classmethod
+                def __prepare__(metacls, name, bases, **kwargs):
+                    print("B", metacls, name, bases, kwargs)
+                    from collections import OrderedDict
+                    return OrderedDict(b=2, c=3)
+
+                def __new__(cls, name, bases, namespace, **kwargs):
+                    print("B", cls, name, bases, namespace, kwargs)
+                    pass
+                    print("----")
+                    return super().__new__(cls, name, bases, namespace)
+
+
+            class C(metaclass=A):
+                pass
+
+
+            class D(C, metaclass=B):
+                pass         
+            # 在确定D类的元类的时候会抛出TypeError异常
+            #  metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
+            # D的元类必须是它所有基类(C)的元类(B)的子类
+            # 即D的元类B应该是C的元类A的子类
+        ``` 
+- 准备类命名空间；
+    所有位于class语句中的代码，其实都位于特殊的命名空间中，通常称之为类命名空间。
+    Python 中，编写的整个程序默认处于全局命名空间内，而类体则处于类命名空间内。
+    如果元类存在classmethod修饰的\_\_prepare\_\_方法，那么被创建的类的命名空间会为
+    namespace = metaclass.\_\_prepare\_\_(name, bases, **kwargs))，这个命名空间也会被作为调用元类的\_\_new\_\_的参数传递进去
+    eg: 
+    ```python
+    my_namespace = A.__prepare__("MyClassName", ())
+    ```
+- 执行类主体；
+    类似exec(class_body, globals(), namespace)的形式被调用，在所给的globals()及其namespace的上下文中执行class\_body语句
+    ```python
+    Signature: exec(source, globals=None, locals=None, /)
+    Docstring:
+    Execute the given source in the context of globals and locals.
+  
+    In [48]: exec("print(f)", {}, {"f": 3})
+    3
+    ```
+    ---
+    **普通调用与exec()的关键区别在于当类定义发生于函数内部时，词法作用域允许类主体（包括任何方法）引用来自当前和外部作用域的名称**
+    ```python
+    In [64]: a = 3
+    In [65]: def func():
+        ...:     r = 2
+        ...:     class T:
+        ...:         print("r=", r)
+        ...:         print("a=", a)
+        ...:
+        ...:
+        ...:
+
+    In [66]: func()
+    r= 2
+    a= 3
+    ```
+    
+- 创建类对象。
+    ClassObj = metaclass(name, bases, namespace, **kwds)（此处的附加关键字参数与传入 \_\_prepare\_\_ 的相同）。
