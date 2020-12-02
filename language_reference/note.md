@@ -252,7 +252,6 @@ print(foo.__kwdefaults__)
     此方法会无条件地被调用以实现对类实例属性的访问。如果类还定义了`__getattr__()`则后者不会被调用，除非`__getattribute__()`显式地调用它或是引发了`AttributeError`
     **尤其注意为了避免递归，应该调用基类方法去访问**
 
-~~~python
 ```python
 In [11]: class A:
 ...:     a = 1
@@ -286,7 +285,6 @@ AttributeError                            Traceback (most recent call last)
 
 AttributeError: 'B' object has no attribute 'c'
 ```
-~~~
 
 2. \_\_getattr\_\_(self, name)
     当因引发AttributeError时被调用，应返回找到的值或者引发AttributeError(不会引发递归)
@@ -626,11 +624,9 @@ type(name, bases, dict) -> a new type
                     pass
                     print("----")
                     return super().__new__(cls, name, bases, namespace)
-
-
+      
             class C(metaclass=A):
                 pass
-
 
             class D(C, metaclass=B):
                 pass         
@@ -678,3 +674,89 @@ type(name, bases, dict) -> a new type
     
 - 创建类对象。
     ClassObj = metaclass(name, bases, namespace, **kwds)（此处的附加关键字参数与传入 \_\_prepare\_\_ 的相同）。
+
+
+## 模拟泛型类型(主要作用于类型提示eg:typing模块)
+```python
+classmethod object.__class_getitem__(cls, key)
+    # 按照 key 参数指定的类型返回一个表示泛型类的专门化对象。
+    # 此方法的查找会基于对象自身，并且当定义于类体内部时，此方法将隐式地成为类方法
+```
+---
+```python
+In [7]: class T:
+   ...:     @classmethod
+   ...:     def __class_getitem__(cls, key):
+   ...:         print(key)
+   ...:
+
+In [8]: T[int]
+<class 'int'>
+
+In [9]: T[float]
+<class 'float'>
+```
+
+## 模拟可调用对象
+```python
+object.__call__(self[, args...])
+```
+此方法会在实例作为一个函数被调用时被调用；
+如果定义了此方法，则x(arg1, arg2, ...)就大致可以被改写为type(x).\_\_call\_\_(x, arg1, ...)
+**因此如果元类定义了\_\_call\_\_那么用类创建实例对象的时候会执行元类的\_\_call\_\_方法**
+
+## 模拟容器类型
+[模拟容器类型](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#emulating-container-types)
+尽可能符合list和dict的设计原则
+## 模拟数字类型
+[模拟数字类型](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#emulating-numeric-types)
+
+## with上下文管理器
+1. object.\_\_enter\_\_(self)
+    进入与此对象相关的运行时上下文。 with 语句将会绑定这个方法的返回值到 as 子句中指定的目标，如果有的话。
+
+2. object.\_\_exit\_\_(self, exc_type, exc_value, traceback)
+    退出关联到此对象的运行时上下文。 各个参数描述了导致上下文退出的异常。 如果上下文是无异常地退出的，三个参数都将为 None。
+    如果提供了异常，并且希望方法屏蔽此异常（即避免其被传播），则应当返回真值。 否则的话，异常将在退出此方法时按正常流程处理。
+    **\_\_exit\_\_() 方法不应该重新引发被传入的异常，这是调用者的责任。**
+   
+## 特殊方法的调用
+保证在其定义于对象类型中时能正确地发挥作用，而不能定义在对象实例字典中
+```python
+In [16]: class C:
+    ...:     pass
+    ...:
+In [17]: c = C()
+In [18]: c.__len__ = lambda: 5
+In [19]: len(c)
+---------------------------------------------------------------------------
+TypeError                                 Traceback (most recent call last)
+<ipython-input-19-821a70939e36> in <module>
+----> 1 len(c)
+TypeError: object of type 'C' has no len()
+```
+同时也忽略\_\_getattribute\_\_的影响
+```python
+>>> class Meta(type):
+...     def __getattribute__(*args):
+...         print("Metaclass getattribute invoked")
+...         return type.__getattribute__(*args)
+...
+>>> class C(object, metaclass=Meta):
+...     def __len__(self):
+...         return 10
+...     def __getattribute__(*args):
+...         print("Class getattribute invoked")
+...         return object.__getattribute__(*args)
+...
+>>> c = C()
+>>> c.__len__()                 # Explicit lookup via instance
+Class getattribute invoked
+10
+>>> type(c).__len__(c)          # Explicit lookup via type
+Metaclass getattribute invoked
+10
+>>> len(c)                      # Implicit lookup
+10
+```
+ 
