@@ -624,7 +624,7 @@ type(name, bases, dict) -> a new type
                     pass
                     print("----")
                     return super().__new__(cls, name, bases, namespace)
-      
+        
             class C(metaclass=A):
                 pass
 
@@ -634,7 +634,7 @@ type(name, bases, dict) -> a new type
             #  metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
             # D的元类必须是它所有基类(C)的元类(B)的子类
             # 即D的元类B应该是C的元类A的子类
-        ``` 
+        ```
 - 准备类命名空间；
     所有位于class语句中的代码，其实都位于特殊的命名空间中，通常称之为类命名空间。
     Python 中，编写的整个程序默认处于全局命名空间内，而类体则处于类命名空间内。
@@ -650,7 +650,7 @@ type(name, bases, dict) -> a new type
     Signature: exec(source, globals=None, locals=None, /)
     Docstring:
     Execute the given source in the context of globals and locals.
-  
+    
     In [48]: exec("print(f)", {}, {"f": 3})
     3
     ```
@@ -719,7 +719,7 @@ object.__call__(self[, args...])
     退出关联到此对象的运行时上下文。 各个参数描述了导致上下文退出的异常。 如果上下文是无异常地退出的，三个参数都将为 None。
     如果提供了异常，并且希望方法屏蔽此异常（即避免其被传播），则应当返回真值。 否则的话，异常将在退出此方法时按正常流程处理。
     **\_\_exit\_\_() 方法不应该重新引发被传入的异常，这是调用者的责任。**
-   
+
 ## 特殊方法的调用
 保证在其定义于对象类型中时能正确地发挥作用，而不能定义在对象实例字典中
 ```python
@@ -759,4 +759,104 @@ Metaclass getattribute invoked
 >>> len(c)                      # Implicit lookup
 10
 ```
- 
+
+# 导入系统
+
+## 包
+所有包都是模块，但并非所有模块都是包。 
+或者换句话说，包只是一种特殊的模块。特别地，任何具有`__path__`属性的模块都会被当作是包。
+
+1. 常规包
+    ```bash 
+    最高处的parent包和三个子包
+    parent/
+        __init__.py
+        one/
+            __init__.py
+        two/
+            __init__.py
+        three/
+            __init__.py
+    ```
+    **导入parent.one将隐式地执行`parent/__init__.py`和`parent/one/__init__.py`.后续导入 parent.two 或 parent.three 则将分别执行`parent/two/__init__.py`和`parent/three/__init__.py`**
+
+2. 命名空间包
+    概念：命名空间包是由多个 部分 构成的，每个部分为父包增加一个子包。 各个部分可能处于文件系统的不同位置。 部分也可能处于 zip 文件中、网络上，或者 Python 在导入期间可以搜索的其他地方。 命名空间包并不一定会直接对应到文件系统中的对象；它们有可能是无实体表示的虚拟模块。
+    命名空间包的`__path__`属性不再是一个`list`而是`_NamespacePath`可迭代对象
+    同时没有`partent/__init__.py`这个文件，实际上在导入期间可能会寻找多个parent目录，各个都是不同的物理部分提供因此parent/one和parent/two的物理位置可能不同，在这种情况下python为顶级的parent包创建一个命名空间包
+    eg:
+    Lib/test/namespace_pkgs/
+                            project1
+                                parent
+                                    child
+                                        one.py
+                            project2
+                                parent
+                                    child
+                                        two.py
+                            project3
+                                parent
+                                    child
+                                        three.py
+    
+    ```python
+    # add the first two parent paths to sys.path
+    >>> import sys
+>>> sys.path += ['Lib/test/namespace_pkgs/project1', 'Lib/test/namespace_pkgs/project2']
+    
+    # parent.child.one can be imported, because project1 was added to sys.path:
+    >>> import parent.child.one
+    >>> parent.__path__
+_NamespacePath(['Lib/test/namespace_pkgs/project1/parent', 'Lib/test/namespace_pkgs/project2/parent'])
+    
+    # parent.child.__path__ contains project1/parent/child and project2/parent/child, but not project3/parent/child:
+    >>> parent.child.__path__
+_NamespacePath(['Lib/test/namespace_pkgs/project1/parent/child', 'Lib/test/namespace_pkgs/project2/parent/child'])
+    
+    # parent.child.two can be imported, because project2 was added to sys.path:
+>>> import parent.child.two
+    
+    # we cannot import parent.child.three, because project3 is not in the path:
+    >>> import parent.child.three
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+      File "<frozen importlib._bootstrap>", line 1286, in _find_and_load
+      File "<frozen importlib._bootstrap>", line 1250, in _find_and_load_unlocked
+ImportError: No module named 'parent.child.three'
+    
+    # now add project3 to sys.path:
+>>> sys.path.append('Lib/test/namespace_pkgs/project3')
+    
+    # and now parent.child.three can be imported:
+>>> import parent.child.three
+    
+    # project3/parent has been added to parent.__path__:
+    >>> parent.__path__
+_NamespacePath(['Lib/test/namespace_pkgs/project1/parent', 'Lib/test/namespace_pkgs/project2/parent', 'Lib/test/namespace_pkgs/project3/parent'])
+    
+    # and project3/parent/child has been added to parent.child.__path__
+    >>> parent.child.__path__
+    _NamespacePath(['Lib/test/namespace_pkgs/project1/parent/child', 'Lib/test/namespace_pkgs/project2/parent/child', 'Lib/test/namespace_pkgs/project3/parent/child'])
+    >>>
+    ```
+
+## 搜索
+例如`foo.bar.baz`。
+在这种情况下，Python会先尝试导入`foo`，然后是`foo.bar`，最后是`foo.bar.baz`。如果这些导入中的任何一个失败，都会引发`ModuleNotFoundError`。
+
+## 模块缓存
+在导入搜索期间首先会被检查的地方是sys.modules。
+这个映射起到缓存之前导入的所有模块的作用（包括其中间路径）。因此如果之前导入过`foo.bar.baz`则`sys.modules`将包含`foo`,`foo.bar`和`foo.bar.baz`条目。每个键的值就是相应的模块对象。
+在导入期间，会在`sys.modules`查找模块名称，如存在则其关联的值就是需要导入的模块，导入过程完成。 然而，如果值为`None`,则会引发`ModuleNotFoundError`。如果找不到指定模块名称，Python将继续搜索该模块。
+
+```python
+import sys
+import copy
+
+
+if __name__ == '__main__':
+    import aa
+    # del sys.modules["aa"] 使得缓存失效，下一次需要重新导入
+    # sys.modules["aa"] = None 强制下一次导入引发ModuleNotFoundError
+    import aa
+```
