@@ -168,6 +168,82 @@ class TestBuilt(unittest.TestCase):
         self.assertListEqual([(1, 2, 3)], list(zip([1], [2], [3])))  # 创建一个聚合了来自每个可迭代对象中的元素的迭代器。
         # 会选择iterables中最短的组合， itertools.zip_longest()则相反
 
+    def test_var(self):
+        # 内置常量
+        self.assertFalse(False)
+        self.assertTrue(True)
+        self.assertIsNone(None)
+
+        # NotImplemented 未实现
+        class A(object):
+            def __init__(self, value):
+                self.value = value
+
+            def __eq__(self, other):
+                if isinstance(other, A):
+                    print('Comparing an A with an A')
+                    return other.value == self.value
+                if isinstance(other, B):
+                    print('Comparing an A with a B')
+                    return other.value == self.value
+                print('Could not compare A with the other class')
+                return NotImplemented
+
+        class B(object):
+            def __init__(self, value):
+                self.value = value
+
+            def __eq__(self, other):
+                if isinstance(other, B):
+                    print('Comparing a B with another B')
+                    return other.value == self.value
+                print('Could not compare B with the other class')
+                return NotImplemented
+
+        a = A(1)
+        b = B(1)
+        self.assertTrue(a, b)
+        self.assertTrue(a, a)
+        self.assertTrue(b, b)
+        self.assertTrue(b, a)
+        # 注解当二进制(或就地)方法返回``NotImplemented``时，解释器将尝试对另一种类型
+        # (或其他一些回滚操作，取决于运算符)的反射操作。
+        # 如果所有尝试都返回``NotImplemented``，则解释器将引发适当的异常。
+        # 如同这里的b不支持b.__eq__(a)会反射调用a的__eq__方法
+        # 如果A的__eq __()也返回NotImplemented，那么运行时将回退到基于对象标识
+        # (在 CPython 中是对象在内存中的地址)的相等内置行为。
+
+        self.assertEqual(..., Ellipsis)  # 对切片进行语法的扩展
+
+        class TestGetItem:
+            def __getitem__(self, key):
+                return key
+
+        test = TestGetItem()
+        self.assertEqual(1, test[1])
+        self.assertEqual(slice(None, None, None), test[:])
+        self.assertEqual(slice(1, 9, None), test[1:9])
+        self.assertEqual(slice(1, 3, 5), test[1:3:5])
+        self.assertTupleEqual((1, 5), test[1, 5])
+        self.assertTupleEqual(test[1, 2:3, :4:, ::], (1, slice(2, 3, None),
+                                                      slice(None, 4, None),
+                                                      slice(None, None, None)))
+        self.assertTupleEqual(test[1, 2, ..., 9, 10], (1, 2, Ellipsis, 9, 10))
+        # __debug__
+        # 如果 Python 没有以 -O 选项启动，则此常量为真值。 另请参见 assert 语句
+        self.assertTrue(__debug__)
+
+        # 由 site 模块添加的常量
+        # site 模块（在启动期间自动导入，除非给出 -S 命令行选项）将几个常量添加到内置命名空间。 它们对交互式解释器 shell 很有用，并且不应在程序中使用。
+        # quit(code=None)
+        # exit(code=None)
+        # 当打印此对象时，会打印出一条消息，例如“Use quit() or Ctrl-D (i.e. EOF) to exit”，当调用此对象时，将使用指定的退出代码来引发 SystemExit。
+        # copyright
+        # credits
+        # 打印或调用的对象分别打印版权或作者的文本。
+        # license
+        # 当打印此对象时，会打印出一条消息“Type license() to see the full license text”，当调用此对象时，将以分页形式显示完整的许可证文本（每次显示一屏）。
+
 
 if __name__ == '__main__':
     unittest.main()
