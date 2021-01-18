@@ -220,6 +220,11 @@ print(foo.__kwdefaults__)
    
    在默认情况下，`object` 通过使用 `is` 来实现 [`__eq__()`](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#object.__eq__)，并在比较结果为假值时返回 `NotImplemented`: `True if x is y else NotImplemented`
    
+   **关于`NotImplemented`的说明** 
+   `NotImplemented`告诉运行时它应该请求other来满足操作。在表达式b1 == a1中，`b1.__eq__(a1)`返回 `NotImplemented`，它告诉Python将进一步尝试调用`a1.__eq__(b1)`。
+   由于a1足够知道返回`True`，所以表达式可以成功。如果A的\_\_eq\_\_()也返回`NotImplemented`，那么运行时将回退到基于对象标识（在 CPython 中是对象在内存中的地址）的相等内置行为。
+   注意，当`b1.__eq__(a1)`失败时抛出一个`NotImpementedError`异常会突破代码调用，除非异常被捕获，但`NotImplemented`不会被抛出并可以用于进一步的测试。
+   
 7. \_\_bool_\_(self)
 
    应该返回 `False` 或 `True`。如果未定义此方法，则会查找并调用 [`__len__()`](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#object.__len__) 并在其返回非零值时视对象的逻辑值为真。如果一个类既未定义 [`__len__()`](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#object.__len__) 也未定义 [`__bool__()`](https://docs.python.org/zh-cn/3.8/reference/datamodel.html#object.__bool__) 则视其所有实例的逻辑值为真。
